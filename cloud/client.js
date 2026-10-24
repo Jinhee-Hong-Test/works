@@ -3,6 +3,7 @@
   const empty=()=>({version:3,dayNotes:{},meetings:[],tasks:[],projects:[],projectColors:{},projectDeadlines:{},vacations:[],projectCompletions:{}});
   const style=document.createElement('style');style.textContent=`
   .cloud-controls{margin-top:auto;padding-top:24px;display:grid;gap:8px;font-size:12px;flex-shrink:0}.cloud-controls button{font-size:var(--sidebar-button-font-size,16px);height:48px;min-height:48px;padding-top:0;padding-bottom:0;line-height:1.25}@media(max-width:720px){.cloud-controls{margin-top:20px;padding-top:0}}
+  .cloud-controls{margin-top:auto;padding-top:24px;display:grid;gap:8px;font-size:12px;flex-shrink:0}.cloud-controls button{font-size:var(--sidebar-button-font-size,16px);height:48px;min-height:48px;padding-top:0;padding-bottom:0;line-height:1.25}@media(max-width:720px){.main > .cloud-controls{margin:24px 16px 0;padding:20px 0 calc(24px + env(safe-area-inset-bottom,0px));width:auto}.main > .cloud-controls button{width:100%}}
   #cloud-gate{position:fixed;inset:0;z-index:10000;background:#f5f5f5;display:grid;place-items:center;padding:20px}
   #cloud-gate[hidden],.cloud-controls [hidden]{display:none!important}
   .cloud-card{width:min(100%,400px);background:white;padding:28px;display:grid;gap:14px}
@@ -12,6 +13,14 @@
   `;document.head.append(style);
   const controls=document.createElement('div');controls.className='cloud-controls';controls.innerHTML=`<span id="cloud-state" role="status">이 기기에 저장 중</span><button id="cloud-login">로그인 · 동기화</button><button id="cloud-migrate" hidden>이 기기 데이터 가져오기</button><button id="cloud-backup" hidden>미동기화 데이터 백업</button><button id="cloud-resolve" hidden>서버 데이터 불러오기</button><button id="cloud-logout" hidden>로그아웃</button>`;
   document.querySelector('.sidebar-actions').prepend(controls);
+  const sidebarActions=document.querySelector('.sidebar-actions');
+  const mobileLayout=window.matchMedia('(max-width:720px)');
+  function placeCloudControls(){
+    if(mobileLayout.matches)document.querySelector('.main').append(controls);
+    else sidebarActions.prepend(controls);
+  }
+  placeCloudControls();
+  mobileLayout.addEventListener('change',placeCloudControls);
   const $=id=>document.getElementById(id);
   // Local file previews retain local storage; cloud authentication is for hosted sites.
   if(window.location.protocol==='file:'){
