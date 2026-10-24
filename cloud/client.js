@@ -7,7 +7,7 @@
   #cloud-gate[hidden],.cloud-controls [hidden]{display:none!important}
   .cloud-card{width:min(100%,400px);background:white;padding:28px;display:grid;gap:14px}
   .cloud-card input{width:100%;font-size:16px;background:#f3f3f3;padding:12px;border:0}
-  .cloud-card h2{margin:0}.cloud-card button{padding:12px}.cloud-card p{font-size:13px;line-height:1.6}
+  .cloud-card .remember-login{display:flex;align-items:center;gap:8px;font-size:14px}.cloud-card .remember-login input{width:16px;height:16px;margin:0;accent-color:#000}.cloud-card h2{margin:0}.cloud-card button{padding:12px}.cloud-card p{font-size:13px;line-height:1.6}
   #cloud-message{font-size:13px;white-space:pre-wrap}#cloud-state{line-height:1.5}
   `;document.head.append(style);
   const controls=document.createElement('div');controls.className='cloud-controls';controls.innerHTML=`<span id="cloud-state" role="status">이 기기에 저장 중</span><button id="cloud-login">로그인 · 동기화</button><button id="cloud-migrate" hidden>이 기기 데이터 가져오기</button><button id="cloud-backup" hidden>미동기화 데이터 백업</button><button id="cloud-resolve" hidden>서버 데이터 불러오기</button><button id="cloud-logout" hidden>로그아웃</button>`;
@@ -28,9 +28,11 @@
   }catch{alert('클라우드 설정을 확인하세요. Supabase HTTPS 주소와 publishable 또는 anon 키만 사용할 수 있습니다.');return;}
   const app=document.querySelector('.app');
   const localSnapshot=bridge.snapshot();
-  const gate=document.createElement('section');gate.id='cloud-gate';gate.innerHTML=`<form class="cloud-card" id="cloud-form"><h2>WORKs</h2><p>같은 계정으로 로그인하면 PC와 아이폰에서 업무를 함께 사용할 수 있습니다.</p><input name="email" type="email" placeholder="이메일" aria-label="이메일" autocomplete="username" required><input name="password" type="password" placeholder="비밀번호" aria-label="비밀번호" autocomplete="current-password" required><button class="primary" type="submit">로그인</button><div id="cloud-message" role="status"></div></form>`;document.body.append(gate);
+  const gate=document.createElement('section');gate.id='cloud-gate';gate.innerHTML=`<form class="cloud-card" id="cloud-form"><h2>WORKs</h2><p>같은 계정으로 로그인하면 PC와 아이폰에서 업무를 함께 사용할 수 있습니다.</p><input name="email" type="email" placeholder="이메일" aria-label="이메일" autocomplete="username" required><input name="password" type="password" placeholder="비밀번호" aria-label="비밀번호" autocomplete="current-password" required><label class="remember-login"><input name="remember" type="checkbox">로그인 상태 유지</label><button class="primary" type="submit">로그인</button><div id="cloud-message" role="status"></div></form>`;document.body.append(gate);
   let session=null,engine=null,applying=false,connecting=false,refreshing=null,releaseLock=null,lockUser=null;
   const sessionKey='pworks-auth:'+base;
+  let rememberLogin=false;
+  function clearSession(){sessionStorage.removeItem(sessionKey);localStorage.removeItem(sessionKey);}
   const userKey=id=>'pworks-draft:'+base+':'+id;
   const lock=()=>{gate.hidden=false;app.inert=true;};
   const unlock=()=>{gate.hidden=true;app.inert=false;};
@@ -70,7 +72,11 @@
     if(e.status>=500)return '로그인은 성공했지만 서버 함수 실행에 실패했습니다. pworks-sync의 Logs를 확인해주세요.'+detail;
     return '로그인은 성공했지만 동기화 연결에 실패했습니다. 서버 함수의 CORS 설정·네트워크 연결을 확인해주세요.'+detail;
   }
-  function storeSession(s){session={...s,expires_at:s.expires_at||Math.floor(Date.now()/1000)+(s.expires_in||3600)};sessionStorage.setItem(sessionKey,JSON.stringify(session));}
+  function storeSession(s){
+    const next={access_token:s.access_token,refresh_token:s.refresh_token,user:s.user,expires_at:s.expires_at||Math.floor(Date.now()/1000)+(s.expires_in||3600)};
+    const target=rememberLogin?localStorage:sessionStorage,other=rememberLogin?sessionStorage:localStorage;
+    target.setItem(sessionKey,JSON.stringify(next));other.removeItem(sessionKey);session=next;
+  }
   async function token(){
     if(!session)throw Object.assign(Error('Login required'),{auth:true});
     if(session.expires_at*1000>Date.now()+60000)return session.access_token;
@@ -117,7 +123,7 @@
     try{
       const result=await request('/auth/v1/token?grant_type=password',{email:f.elements.email.value.trim(),password:f.elements.password.value});
       // Pending work from another account remains in its own account-specific cache.
-      stage='sync';storeSession(result);f.elements.password.value='';await connect();
+      stage='sync';rememberLogin=f.elements.remember.checked;storeSession(result);f.elements.password.value='';await connect();
     }catch(e){$('cloud-message').textContent=loginError(e,stage);}
     finally{connecting=false;f.querySelector('button').disabled=false;}
   };
@@ -137,7 +143,7 @@
   $('cloud-logout').onclick=async()=>{
     if(engine?.busy){bridge.notify('동기화가 끝난 후 다시 시도해주세요.');return;}
     if((engine?.state.dirty||engine?.state.pending)&&!confirm('미동기화 내용은 이 기기에 보관됩니다. 같은 계정으로 다시 로그인하면 이어서 동기화합니다. 로그아웃할까요?'))return;
-    const old=session;session=null;engine=null;if(releaseLock)releaseLock();releaseLock=null;lockUser=null;sessionStorage.removeItem(sessionKey);apply(empty());lock();$('cloud-message').textContent='';
+    const old=session;session=null;engine=null;if(releaseLock)releaseLock();releaseLock=null;lockUser=null;clearSession();$('cloud-form').elements.remember.checked=false;rememberLogin=false;apply(empty());lock();$('cloud-message').textContent='';
     if(old)request('/auth/v1/logout?scope=local',{},old.access_token).catch(()=>{});
   };
   // Foreground polling works on iPhone too; background tabs are not promised real-time delivery.
@@ -145,5 +151,14 @@
   setInterval(tick,3000);window.addEventListener('online',tick);window.addEventListener('focus',tick);document.addEventListener('visibilitychange',tick);
   window.addEventListener('beforeunload',event=>{if(engine?.state.dirty||engine?.state.pending){event.preventDefault();event.returnValue='';}});
   lock();
-  try{const saved=sessionStorage.getItem(sessionKey);if(saved){session=JSON.parse(saved);connect().catch(e=>{$('cloud-message').textContent=loginError(e,'sync');});}}catch{}
+  try{
+    const persistent=localStorage.getItem(sessionKey);
+    const saved=persistent||sessionStorage.getItem(sessionKey);
+    if(saved){
+      rememberLogin=!!persistent;$('cloud-form').elements.remember.checked=rememberLogin;
+      session=JSON.parse(saved);
+      if(!session?.user?.id||!session.access_token||!session.refresh_token){clearSession();session=null;}
+      else connect().catch(e=>{$('cloud-message').textContent=loginError(e,'sync');});
+    }
+  }catch{$('cloud-message').textContent='저장된 로그인 정보를 읽지 못했습니다. 다시 로그인해주세요.';}
 })();
