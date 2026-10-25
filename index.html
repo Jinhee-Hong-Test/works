@@ -1642,7 +1642,15 @@ for(const event of ['pointerdown','pointermove','keydown','input','scroll','touc
 setInterval(checkDashboardIdle,1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkDashboardIdle();});
 window.addEventListener('focus',checkDashboardIdle);
-window.addEventListener('pageshow',()=>{if(view==='home')window.scrollTo({top:0,left:0,behavior:'instant'});});
+if('scrollRestoration' in history)history.scrollRestoration='manual';
+function resetMobilePageTop(){
+ if(!window.matchMedia('(max-width:900px)').matches)return;
+ const reset=()=>{window.scrollTo({top:0,left:0,behavior:'instant'});if(document.scrollingElement)document.scrollingElement.scrollTop=0;};
+ reset();requestAnimationFrame(()=>requestAnimationFrame(reset));
+}
+window.addEventListener('pageshow',()=>{if(view==='home')window.scrollTo({top:0,left:0,behavior:'instant'});resetMobilePageTop();});
+document.addEventListener('click',event=>{if(event.target.closest('[data-view],.brand'))resetMobilePageTop();});
+
 $('.content').addEventListener('animationend',event=>{if(event.animationName==='menu-content-enter')event.currentTarget.classList.remove('menu-entering');});
 filters();render();
 </script>
