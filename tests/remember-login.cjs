@@ -1,0 +1,13 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('cloud/client.js','utf8');
+const storage=()=>{const map=new Map();return {setItem:(k,v)=>map.set(k,v),getItem:k=>map.get(k)||null,removeItem:k=>map.delete(k)}};
+const context={localStorage:storage(),sessionStorage:storage()};vm.createContext(context);
+const store=source.slice(source.indexOf('  function storeSession('),source.indexOf('  async function token('));
+vm.runInContext("let session=null,rememberLogin=false;const sessionKey='test';"+store+source.match(/function clearSession\(\)\{[^}]+\}/)[0]+";this.save=(remember,s)=>{rememberLogin=remember;storeSession(s)};this.clear=clearSession",context);
+const session={access_token:'access',refresh_token:'refresh',user:{id:'u'},expires_in:3600,password:'never-store'};
+context.save(false,session);assert(context.sessionStorage.getItem('test'));assert.equal(context.localStorage.getItem('test'),null);
+context.save(true,session);assert(context.localStorage.getItem('test'));assert.equal(context.sessionStorage.getItem('test'),null);assert(!context.localStorage.getItem('test').includes('never-store'));
+context.save(true,{...session,access_token:'new'});assert.equal(JSON.parse(context.localStorage.getItem('test')).access_token,'new');
+context.save(false,session);assert.equal(context.localStorage.getItem('test'),null);
+context.clear();assert.equal(context.sessionStorage.getItem('test'),null);assert.equal(context.localStorage.getItem('test'),null);
+console.log('PASS: optional persistent login, token renewal, opt-out, logout, no password storage');

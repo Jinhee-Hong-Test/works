@@ -11,14 +11,7 @@
   #cloud-message{font-size:13px;white-space:pre-wrap}#cloud-state{line-height:1.5}
   `;document.head.append(style);
   const controls=document.createElement('div');controls.className='cloud-controls';controls.innerHTML=`<span id="cloud-state" role="status">이 기기에 저장 중</span><button id="cloud-login">로그인 · 동기화</button><button id="cloud-migrate" hidden>이 기기 데이터 가져오기</button><button id="cloud-backup" hidden>미동기화 데이터 백업</button><button id="cloud-resolve" hidden>서버 데이터 불러오기</button><button id="cloud-logout" hidden>로그아웃</button>`;
-  const sidebarActions=document.querySelector('.sidebar-actions');
-  const mobileLayout=window.matchMedia('(max-width:720px)');
-  function placeCloudControls(){
-    if(mobileLayout.matches)document.querySelector('.main').append(controls);
-    else sidebarActions.prepend(controls);
-  }
-  placeCloudControls();
-  mobileLayout.addEventListener('change',placeCloudControls);
+  document.querySelector('.sidebar-actions').prepend(controls);
   const $=id=>document.getElementById(id);
   // Local file previews retain local storage; cloud authentication is for hosted sites.
   if(window.location.protocol==='file:'){
